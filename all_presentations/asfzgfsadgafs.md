@@ -1,2 +1,0 @@
-`GRUNNUR`
-ss
