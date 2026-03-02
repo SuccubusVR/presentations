@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Viewer</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+        }
+
+        .images-container {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: #000;
+            flex-direction: column;
+        }
+
+        .images-container img {
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="images-container" id="container">
+        <!-- all images will be inserted here -->
+    </div>
+
+    <script>
+        const imageCount = 100; // maximum images per presentation
+        let currentIndex = 0;
+        let actualCount = 0;
+        const container = document.getElementById('container');
+        const params = new URLSearchParams(window.location.search);
+        let presentationIdx = 1;
+
+        // fetch the list of names and pick the one indicated by ?p=
+        // helper normalize strings for comparison
+        function normalizeName(str) {
+            return String(str)
+                .trim()
+                .toLowerCase()
+                .replace(/[\s_-]+/g, '-');
+        }
+
+        async function loadPresentationName() {
+            try {
+                const resp = await fetch('https://succubusvr.github.io/presentations/compiled/presentation_names.txt');
+                const text = await resp.text();
+                const names = text.trim().split(/\r?\n/);
+                const query = params.get('p');
+                const normQuery = normalizeName(query);
+                presentationIdx = names.findIndex(n => normalizeName(n) === normQuery);
+                if (presentationIdx < 0) presentationIdx = 1;
+            } catch (e) {
+                console.warn('Failed to load presentation names, using default', e);
+            }
+        }
+
+        // preload images sequentially; stop on first 404 error
+        async function populateImages() {
+            const folder = String(presentationIdx).padStart(4, '0');
+            for (let i = 0; i < imageCount; i++) {
+                const img = new Image();
+                img.alt = `Image ${i}`;
+                const url = `https://succubusvr.github.io/presentations/compiled/${folder}/${String(i).padStart(4, '0')}.png`;
+                const ok = await new Promise(resolve => {
+                    img.onload = () => resolve(true);
+                    img.onerror = () => resolve(false);
+                    img.src = url;
+                });
+                if (!ok) break;
+                container.appendChild(img);
+                actualCount = i + 1;
+            }
+        }
+
+        function scrollToIndex(index) {
+            if (index < 0) index = 0;
+            const maxIndex = container.children.length - 1;
+            if (maxIndex < 0) return;
+            if (index > maxIndex) index = maxIndex;
+            const target = container.children[index];
+            if (target) {
+                target.scrollIntoView({ behavior: 'instant', block: 'start' });
+                currentIndex = index;
+            }
+        }
+
+        function nextImage() {
+            const maxIdx = container.children.length - 1;
+            if (currentIndex < maxIdx) scrollToIndex(currentIndex + 1);
+        }
+
+        function prevImage() {
+            if (currentIndex > 0) scrollToIndex(currentIndex - 1);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') nextImage();
+            if (e.key === 'ArrowLeft') prevImage();
+        });
+
+        // populate on load and scroll to first (after fetching presentation name)
+        loadPresentationName().then(() => {
+            populateImages();
+            scrollToIndex(0);
+        });
+    </script>
+</body>
+
+</html>
